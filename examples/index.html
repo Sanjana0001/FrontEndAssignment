@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>QueryBuilder </title>
+
+  <link rel="stylesheet" href="/node_modules/bootstrap/dist/css/bootstrap.css" id="bt-theme">
+  <link rel="stylesheet" href="/node_modules/chosenjs/chosen.css">
+  <link rel="stylesheet" href="/node_modules/awesome-bootstrap-checkbox/awesome-bootstrap-checkbox.css">
+  <link rel="stylesheet" href="/node_modules/bootstrap-slider/dist/css/bootstrap-slider.css">
+  <link rel="stylesheet" href="/node_modules/@selectize/selectize/dist/css/selectize.bootstrap5.css">
+  <link rel="stylesheet" href="/node_modules/bootstrap-icons/font/bootstrap-icons.css">
+  <link rel="stylesheet" href="/dist/css/query-builder.dark.css" id="qb-theme">
+</head>
+
+<body>
+
+<div class="container">
+  <div class="col-md-12 col-lg-10 offset-lg-1">
+    <div class="page-header">
+
+      <h1> QueryBuilder
+        
+      </h1>
+    </div>
+
+    <div class="well well-sm">
+      <div id="builder"></div>
+
+      <div class="btn-group">
+        <button class="btn btn-danger reset">Reset</button>
+        <button class="btn btn-warning set-filters" data-bs-toggle="tooltip" data-container="body" data-placement="bottom"
+                title="Adds a filter 'New filter' and removes 'Coordinates', 'State', 'BSON'">Set filters
+        </button>
+      </div>
+
+      <div class="btn-group">
+        <button class="btn btn-default" disabled>Set:</button>
+        <button class="btn btn-success set">From JSON</button>
+        <button class="btn btn-success set-mongo">From MongoDB</button>
+        <button class="btn btn-success set-sql">From SQL</button>
+      </div>
+
+      <div class="btn-group">
+        <button class="btn btn-default" disabled>Get:</button>
+        <button class="btn btn-primary parse-json">JSON</button>
+        <button class="btn btn-primary parse-sql" data-stmt="false">SQL</button>
+        <button class="btn btn-primary parse-sql" data-stmt="question_mark">SQL statement</button>
+        <button class="btn btn-primary parse-mongo">MongoDB</button>
+      </div>
+
+      <div id="result" class="hide">
+        <h3>Output</h3>
+        <pre></pre>
+      </div> 
+    </div>
+  </div>
+</div>
+<script src="/node_modules/jquery/dist/jquery.js"></script>
+<script src="/node_modules/@popperjs/core/dist/umd/popper.js"></script>
+<script src="/node_modules/bootstrap/dist/js/bootstrap.js"></script>
+<script src="/node_modules/chosenjs/chosen.jquery.js"></script>
+<script src="/node_modules/bootstrap-slider/dist/bootstrap-slider.js"></script>
+<script src="/node_modules/@selectize/selectize/dist/js/selectize.js"></script>
+<script src="/node_modules/jquery-extendext/jquery-extendext.js"></script>
+<script src="/node_modules/sql-parser-mistic/browser/sql-parser.js"></script>
+<script src="/node_modules/interactjs/dist/interact.js"></script>
+<script src="/node_modules/bootbox/dist/bootbox.all.js"></script>
+
+<script src="/dist/js/query-builder.js"></script>
+
+<script>
+  document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (element) {
+        new bootstrap.Tooltip(element);
+  });
+
+  var $b = $('#builder');
+
+  var options = {
+    allow_empty: true,
+
+    sort_filters: true,
+
+    optgroups: {
+      core: {
+        en: 'Core',
+        fr: 'Coeur'
+      }
+    },
+
+    plugins: {
+      'bt-tooltip-errors': { delay: 100 },
+      'sortable': null,
+      'filter-description': { mode: 'bootbox' },
+      'unique-filter': null,
+      'bt-checkbox': { color: 'primary' }
+    },
+
+    operators: [
+      { type: 'equal', optgroup: 'basic' },
+      { type: 'not_equal', optgroup: 'basic' },
+      // { type: 'in', optgroup: 'basic' },
+      // { type: 'not_in', optgroup: 'basic' },
+      // { type: 'less', optgroup: 'numbers' },
+      // { type: 'less_or_equal', optgroup: 'numbers' },
+      // { type: 'greater', optgroup: 'numbers' },
+      // { type: 'greater_or_equal', optgroup: 'numbers' },
+      // { type: 'between', optgroup: 'numbers' },
+      // { type: 'begins_with', optgroup: 'strings' },
+      // { type: 'contains', optgroup: 'strings' },
+      // { type: 'ends_with', optgroup: 'strings' },
+      { type: 'is_empty' },
+      { type: 'is_not_empty' },
+      { type: 'is_null' },
+      { type: 'is_not_null' }
+    ],
+
+    filters: [
+      {
+        id: 'name',
+        field: 'username',
+        label: {
+          en: 'Name',
+          fr: 'Nom'
+        },
+        icon: 'bi-person-fill',
+        value_separator: ',',
+        type: 'string',
+        optgroup: 'core',
+        default_value: 'Mistic',
+        size: 30,
+        validation: {
+          allow_empty_value: true
+        },
+        unique: true
+      },
+      {
+        id: 'age',
+        label: 'Age',
+        icon: 'bi-calendar3',
+        type: 'integer',
+        input: 'text',
+        value_separator: '|',
+        optgroup: 'core',
+        description: function(rule) {
+          if (rule.operator && ['in', 'not_in'].indexOf(rule.operator.type) !== -1) {
+            return 'Use a pipe (|) to separate multiple values with "in" and "not in" operators';
+          }
+        }
+      },
+      {
+        id: 'bson',
+        label: 'BSON',
+        icon: 'bi-qr-code',
+        type: 'string',
+        input: 'textarea',
+        operators: ['equal'],
+        size: 30,
+        rows: 3
+      },
+      {
+        id: 'category',
+        label: 'Category',
+        icon: 'bi-list-task',
+        type: 'integer',
+        input: 'checkbox',
+        optgroup: 'core',
+        values: {
+          1: 'Books',
+          2: 'Movies',
+          3: 'Music',
+          4: 'Tools',
+          5: 'Goodies',
+          6: 'Clothes'
+        },
+        colors: {
+          1: 'foo',
+          2: 'warning',
+          5: 'success'
+        },
+        operators: ['equal', 'not_equal', 'in', 'not_in', 'is_null', 'is_not_null'],
+        default_operator: 'in'
+      },
+      {
+        id: 'continent',
+        label: 'Continent',
+        icon: 'bi-globe-americas',
+        type: 'string',
+        input: 'select',
+        optgroup: 'core',
+        placeholder: 'Select something',
+        values: [
+          {
+            label: 'Europe',
+            value: 'eur',
+            optgroup: 'North'
+          },
+          {
+            label: 'Asia',
+            value: 'asia',
+            optgroup: 'North'
+          },
+          {
+            label: 'Oceania',
+            value: 'oce',
+            optgroup: 'South'
+          },
+          {
+            label: 'Africa',
+            value: 'afr',
+            optgroup: 'South'
+          },
+          {
+            label: 'North America',
+            value: 'na',
+            optgroup: 'North'
+          },
+          {
+            label: 'South America',
+            value: 'sa',
+            optgroup: 'South'
+          },
+          {
+            label: 'Mordor',
+            value: 'mrd'
+          }
+        ],
+        operators: ['equal', 'not_equal', 'is_null', 'is_not_null']
+      },
+      {
+        id: 'state',
+        label: 'State',
+        icon: 'bi-globe-americas',
+        type: 'string',
+        input: 'select',
+        multiple: true,
+        plugin: 'selectize',
+        plugin_config: {
+          valueField: 'id',
+          labelField: 'name',
+          searchField: 'name',
+          sortField: 'name',
+          options: [
+            { id: "AL", name: "Alabama" },
+            { id: "AK", name: "Alaska" },
+            { id: "AZ", name: "Arizona" },
+            { id: "AR", name: "Arkansas" },
+            { id: "CA", name: "California" },
+            { id: "CO", name: "Colorado" },
+            { id: "CT", name: "Connecticut" },
+            { id: "DE", name: "Delaware" },
+            { id: "FL", name: "Florida" },
+            { id: "GA", name: "Georgia" },
+            { id: "HI", name: "Hawaii" },
+            { id: "ID", name: "Idaho" },
+            { id: "IL", name: "Illinois" },
+            { id: "IN", name: "Indiana" },
+            { id: "IA", name: "Iowa" },
+            { id: "KS", name: "Kansas" },
+            { id: "KY", name: "Kentucky" },
+            { id: "LA", name: "Louisiana" },
+            { id: "ME", name: "Maine" },
+            { id: "MD", name: "Maryland" },
+            { id: "MA", name: "Massachusetts" },
+            { id: "MI", name: "Michigan" },
+            { id: "MN", name: "Minnesota" },
+            { id: "MS", name: "Mississippi" },
+            { id: "MO", name: "Missouri" },
+            { id: "MT", name: "Montana" },
+            { id: "NE", name: "Nebraska" },
+            { id: "NV", name: "Nevada" },
+            { id: "NH", name: "New Hampshire" },
+            { id: "NJ", name: "New Jersey" },
+            { id: "NM", name: "New Mexico" },
+            { id: "NY", name: "New York" },
+            { id: "NC", name: "North Carolina" },
+            { id: "ND", name: "North Dakota" },
+            { id: "OH", name: "Ohio" },
+            { id: "OK", name: "Oklahoma" },
+            { id: "OR", name: "Oregon" },
+            { id: "PA", name: "Pennsylvania" },
+            { id: "RI", name: "Rhode Island" },
+            { id: "SC", name: "South Carolina" },
+            { id: "SD", name: "South Dakota" },
+            { id: "TN", name: "Tennessee" },
+            { id: "TX", name: "Texas" },
+            { id: "UT", name: "Utah" },
+            { id: "VT", name: "Vermont" },
+            { id: "VA", name: "Virginia" },
+            { id: "WA", name: "Washington" },
+            { id: "WV", name: "West Virginia" },
+            { id: "WI", name: "Wisconsin" },
+            { id: "WY", name: "Wyoming" }
+          ]
+        }
+      }
+    ]
+  };
+
+  $b.queryBuilder(options);
+
+  $('.reset').on('click', function() {
+    $b.queryBuilder('reset');
+    $('#result').hide();
+  });
+
+  $('.set').on('click', function() {
+    $b.queryBuilder('setRulesFromJSON', {
+      condition: 'AND',
+      rules: [
+        { id: 'name', operator: 'equal', value: 'Mistic' },
+        { id: 'age', operator: 'greater_or_equal', value: 10 },
+        { id: 'continent', operator: 'in', value: ['eur', 'asia'] }
+      ]
+    });
+  });
+
+  $('.parse-json').on('click', function() {
+    $('#result').show();
+    $('#result pre').text(JSON.stringify($b.queryBuilder('getRules'), null, 2));
+  });
+
+  $('.parse-sql').on('click', function() {
+    $('#result').show();
+    $('#result pre').text($b.queryBuilder('getSQL', $(this).data('stmt')));
+  });
+
+  $('.parse-mongo').on('click', function() {
+    $('#result').show();
+    $('#result pre').text(JSON.stringify($b.queryBuilder('getMongo'), null, 2));
+  });
+
+  $('.set-filters').on('click', function() {
+    $b.queryBuilder('setFilters', [
+      {
+        id: 'name',
+        field: 'username',
+        label: 'Name',
+        icon: 'bi-person-fill',
+        value_separator: ',',
+        type: 'string',
+        default_value: 'Mistic'
+      },
+      {
+        id: 'age',
+        label: 'Age',
+        icon: 'bi-calendar3',
+        type: 'integer',
+        input: 'text',
+        value_separator: '|',
+        placeholder: 'Type age'
+      }
+    ]);
+  });
+
+  $('.set-mongo').on('click', function() {
+    $b.queryBuilder('setRulesFromMongo', {
+      $and: [
+        { name: 'Mistic' },
+        { age: { $gte: 10 } }
+      ]
+    });
+  });
+
+  $('.set-sql').on('click', function() {
+    $b.queryBuilder('setRulesFromSQL', 'SELECT * FROM `table` WHERE `name` = "Mistic" AND `age` >= 10');
+  });
+
+</script>
+</body>
+</html>
